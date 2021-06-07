@@ -82,22 +82,30 @@ function parseCommand(m: TelegramBotAPI.Message): [cmd?: string, arg?: string] {
     return [c, text.slice(p + 1).trim()];
 }
 
-async function send(chat: number, html: string, reply?: number): Promise<number> {
+type InlineKeyboard = TelegramBotAPI.InlineKeyboardButton[];
+
+async function send(chat: number, html: string, reply?: number, kbd?: InlineKeyboard): Promise<number> {
     const t = Date.now();
     let m: TelegramBotAPI.Message;
     try {
-        m = await api.sendMessage(chat, html, {
+        let opt: TelegramBotAPI.SendMessageOptions = {
             disable_web_page_preview: true,
             parse_mode: "HTML",
             reply_to_message_id: reply,
-        });
+        };
+        if (kbd !== undefined) {
+            opt.reply_markup = {
+                inline_keyboard: [kbd],
+            };
+        }
+        m = await api.sendMessage(chat, html, opt);
     } catch (e) {
         const d = (Date.now() - t).toString() + "ms";
-        log("warn", "send(chat=%j, html=(...), reply=%j): %s err %s", chat, reply, d, e);
+        log("warn", "send(chat=%j, html=(...), reply=%j, kbd=(...)): %s err %s", chat, reply, d, e);
         return 0;
     }
     const d = (Date.now() - t).toString() + "ms";
-    log("verbose", "send(chat=%j, html=(...), reply=%j): %s ok %j", chat, reply, d, m.message_id);
+    log("verbose", "send(chat=%j, html=(...), reply=%j, kbd=(...)): %s ok %j", chat, reply, d, m.message_id);
     return m.message_id;
 }
 
@@ -194,6 +202,21 @@ async function leaveChat(chat: number): Promise<boolean> {
     return r;
 }
 
+async function answerCallbackQuery(id: string): Promise<boolean> {
+    const t = Date.now();
+    let r: boolean;
+    try {
+        r = await api.answerCallbackQuery(id);
+    } catch (e) {
+        const d = (Date.now() - t).toString() + "ms";
+        log("warn", "answercallbackquery(id=%j): %s err %s", id, d, e);
+        return false;
+    }
+    const d = (Date.now() - t).toString() + "ms";
+    log("warn", "answercallbackquery(id=%j): %s ok %s", id, d, r);
+    return r;
+}
+
 export = {
     escapeHTML,
     init,
@@ -207,4 +230,5 @@ export = {
     unban,
     getChatMember,
     leaveChat,
+    answerCallbackQuery,
 }

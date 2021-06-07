@@ -42,6 +42,8 @@ class Group {
     }
 
     public async handleMessage(m: TelegramBot.Message): Promise<void> {
+        await this.mutex.lock();
+        this.mutex.unlock();
         npmlog.verbose("bot", "(update, chat=%j, msg=%j)", m.chat.id, m.message_id);
         for (const u of (m.new_chat_members || [])) {
             await this.delKey(`user:${u.id}:role`);
@@ -55,6 +57,30 @@ class Group {
         if (await this.handleCommand(m)) {
             return;
         }
+    }
+
+    public async handleCallbackQuery(q: TelegramBot.CallbackQuery): Promise<void> {
+        npmlog.verbose("bot", "(update, callbackquery=%j)", q.id);
+
+        try {
+            const args = q.data.split("/") || [];
+            if (args?.length <= 2)
+            switch (args[0])
+        } catch (e) {
+
+        }
+
+        if (q.data !== undefined) {
+
+            const args = q.data.split("/");
+
+            // TODO: fill here
+
+            switch (args[0])
+
+        }
+
+        await bot.answerCallbackQuery(q.id);
     }
 
     private async handleVerification(m: TelegramBot.Message): Promise<boolean> {
@@ -90,7 +116,11 @@ class Group {
 
         npmlog.info("group", "(group=%j).onjoin(msg=%j, user=%j) start", this.id, msg.message_id, user.id);
         await this.setKey(`user:${user.id}:pending`, "true");
-        const h = await this.send(await this.render(await this.getTemplate("onjoin"), user), msg.message_id);
+        const text = await this.render(await this.getTemplate("onjoin"), user);
+        const h = await this.send(text, msg.message_id, [
+            { text: "PASS", callback_data: `pass ${this.id} ${user.id}` },
+            { text: "FAIL", callback_data: `fail ${this.id} ${user.id}` },
+        ]);
 
         const passed = await Promise.race([
             this.sleep(false),
@@ -123,21 +153,23 @@ class Group {
         await this.onFail(user);
     }
 
-    private async onPass(msg: TelegramBot.Message, user: TelegramBot.User): Promise<void> {
+    private async onPass(user: TelegramBot.User, msg?: TelegramBot.Message): Promise<void> {
         if (!await this.existsKey(`user:${user.id}:pending`)) {
             return;
         }
-        npmlog.info("group", "(group=%j).onpass(msg=%j, user=%j)", this.id, msg.message_id, user.id);
+        npmlog.info("group", "(group=%j).onpass(msg=%j, user=%j)", this.id, msg?.message_id, user.id);
         await this.delKey(`user:${user.id}:pending`);
         const resolve = this.resolvers.get(user.id);
         if (resolve !== undefined) {
             resolve(true);
         }
         if (await this.existsKey("quiet")) {
-            await this.delMsg(msg.message_id);
+            if (msg !== undefined) {
+                await this.delMsg(msg.message_id);
+            }
             return;
         }
-        const g = await this.send(await this.render(await this.getTemplate("onpass"), user), msg.message_id);
+        const g = await this.send(await this.render(await this.getTemplate("onpass"), user), msg?.message_id);
         if (await this.existsKey("verbose")) {
             return;
         }
@@ -487,8 +519,8 @@ class Group {
         return redis.exists(`group:${this.id}:${key}`);
     }
 
-    private async send(html: string, reply?: number): Promise<number> {
-        return bot.send(this.id, html, reply);
+    private async send(html: string, reply?: number, kbd?: TelegramBot.InlineKeyboardButton[]): Promise<number> {
+        return bot.send(this.id, html, reply, kbd);
     }
 
     private async delMsg(msg: number): Promise<boolean> {

@@ -26,7 +26,7 @@ async function sleep(time: number): Promise<void> {
     while (true) {
         try {
             const updates = await bot.getAPI().getUpdates({
-                allowed_updates: ["message"],
+                allowed_updates: ["message", "callback_query"],
                 offset: lastUpdateID + 1,
                 timeout: 50,
             });
